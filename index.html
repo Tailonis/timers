@@ -116,12 +116,63 @@
       background: linear-gradient(180deg, rgba(255,93,108,.18), rgba(255,93,108,.08));
       border-color: rgba(255,93,108,.25);
     }
-
-    .groups {
+  
+        .groups {
       display: grid;
-      grid-template-columns: 1fr;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 10px;
       align-items: start;
+    }
+    
+    @media (max-width: 1400px) {
+      .timers-grid {
+        grid-template-columns: repeat(3, minmax(180px, 1fr));
+      }
+    }
+    
+    @media (max-width: 1200px) {
+      .groups {
+        grid-template-columns: 1fr;
+      }
+    
+      .timers-grid {
+        grid-template-columns: repeat(2, minmax(170px, 1fr));
+      }
+    }
+    
+    @media (max-width: 900px) {
+      .topbar,
+      .group-header,
+      .add-timer-form {
+        grid-template-columns: 1fr;
+      }
+    
+      .group-actions {
+        justify-content: start;
+      }
+    }
+    
+    @media (max-width: 640px) {
+      .timers-grid {
+        grid-template-columns: 1fr;
+      }
+    
+      .timer-name {
+        font-size: 16px;
+      }
+    
+      .timer-duration {
+        font-size: 14px;
+        width: 84px;
+      }
+    
+      .time-label {
+        font-size: 18px;
+      }
+    
+      .status-label {
+        font-size: 13px;
+      }
     }
 
     .group {
@@ -1196,3 +1247,4 @@
   </script>
 </body>
 </html>
+
