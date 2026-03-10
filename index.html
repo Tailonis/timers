@@ -233,6 +233,22 @@
       min-width: 0;
       min-height: 255px;
       position: relative;
+      cursor: grab;
+    }
+
+    .timer-card:active {
+      cursor: grabbing;
+    }
+
+    .timer-card.dragging {
+      opacity: 0.45;
+      transform: scale(0.98);
+      border-color: rgba(124,156,255,.45);
+    }
+
+    .timer-card.drag-over {
+      outline: 2px dashed rgba(124,156,255,.55);
+      outline-offset: -4px;
     }
 
     .timer-top {
@@ -258,16 +274,19 @@
     }
 
     .timer-visual {
+      position: relative;
       display: grid;
       place-items: center;
-      margin-top: 2px;
+      width: 100%;
+      height: 130px;
+      margin-top: 4px;
     }
 
     .timer-svg {
       width: var(--timer-size);
       height: var(--timer-size);
       overflow: visible;
-      transform: rotate(-90deg);
+      transform: rotate(-90deg) scaleX(-1);
     }
 
     .timer-track {
@@ -281,30 +300,37 @@
       stroke: var(--green);
       stroke-width: 8;
       stroke-linecap: round;
-      transition: stroke .25s ease, stroke-dashoffset .25s linear, filter .25s ease;
+      transition: stroke .25s ease, stroke-dashoffset .2s linear, filter .25s ease;
       filter: drop-shadow(0 0 6px rgba(32,201,151,.25));
     }
 
-	.timer-center {
-	  position: absolute;
-	  inset: 0;
-	  display: grid;
-	  place-items: center;
-	  pointer-events: none;
-	}
+    .timer-center {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      width: 100%;
+    }
 
     .time-label {
       font-size: 21px;
       font-weight: 700;
       letter-spacing: .2px;
+      line-height: 1;
+      text-align: center;
     }
 
-	.status-label {
-	  text-align: center;
-	  color: var(--muted);
-	  font-size: 14px;
-	  margin-top: -4px;
-	}
+    .status-label {
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+      min-height: 18px;
+      margin-top: 0;
+    }
 
     .timer-actions {
       display: grid;
@@ -435,11 +461,13 @@
   </div>
 
   <script>
-    const STORAGE_KEY = 'timer_groups_compact_v4_match_style';
+    const STORAGE_KEY = 'timer_groups_final_v1';
     const TICK_MS = 200;
 
     let state = loadFromStorage();
     let audioCtx = null;
+    let draggedTimerId = null;
+    let draggedFromGroupId = null;
 
     function uid(prefix = 'id') {
       return prefix + '_' + Math.random().toString(36).slice(2, 10);
@@ -491,6 +519,59 @@
       return num;
     }
 
+    function normalizeImportedState(parsed) {
+      const now = Date.now();
+
+      return {
+        groups: parsed.groups.map(group => ({
+          id: group.id || uid('group'),
+          name: group.name || 'Без назви',
+          timers: Array.isArray(group.timers)
+            ? group.timers.map(timer => {
+                const duration = sanitizeDuration(timer.duration);
+                const wasRunning = Boolean(timer.isRunning);
+                const savedEndTime = timer.endTime ? Number(timer.endTime) : null;
+
+                let remaining = Math.max(0, Number(timer.remaining ?? duration));
+                let isRunning = false;
+                let endTime = null;
+                let finished = Boolean(timer.finished);
+
+                if (wasRunning && savedEndTime) {
+                  remaining = Math.max(0, (savedEndTime - now) / 1000);
+
+                  if (remaining > 0) {
+                    isRunning = true;
+                    endTime = savedEndTime;
+                    finished = false;
+                  } else {
+                    remaining = 0;
+                    isRunning = false;
+                    endTime = null;
+                    finished = true;
+                  }
+                }
+
+                if (!wasRunning && remaining <= 0) {
+                  finished = true;
+                }
+
+                return {
+                  id: timer.id || uid('timer'),
+                  name: timer.name || 'Таймер',
+                  duration,
+                  remaining,
+                  isRunning,
+                  endTime,
+                  finished,
+                  beepPlayed: finished
+                };
+              })
+            : []
+        }))
+      };
+    }
+
     function loadFromStorage() {
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
@@ -501,24 +582,7 @@
           return defaultState();
         }
 
-        parsed.groups = parsed.groups.map(group => ({
-          id: group.id || uid('group'),
-          name: group.name || 'Без назви',
-          timers: Array.isArray(group.timers)
-            ? group.timers.map(timer => ({
-                id: timer.id || uid('timer'),
-                name: timer.name || 'Таймер',
-                duration: sanitizeDuration(timer.duration),
-                remaining: Math.max(0, Number(timer.remaining ?? timer.duration ?? 60)),
-                isRunning: false,
-                endTime: null,
-                finished: Boolean(timer.finished && Number(timer.remaining) <= 0),
-                beepPlayed: Boolean(timer.beepPlayed && Number(timer.remaining) <= 0)
-              }))
-            : []
-        }));
-
-        return parsed;
+        return normalizeImportedState(parsed);
       } catch (err) {
         console.error('Помилка завантаження localStorage:', err);
         return defaultState();
@@ -535,8 +599,10 @@
               id: timer.id,
               name: timer.name,
               duration: timer.duration,
-              remaining: Math.max(0, Math.ceil(timer.remaining)),
-              finished: timer.finished
+              remaining: Math.max(0, timer.remaining),
+              finished: timer.finished,
+              isRunning: timer.isRunning,
+              endTime: timer.endTime
             }))
           }))
         };
@@ -556,17 +622,17 @@
 
     function getTimerVisualState(timer) {
       if (timer.remaining <= 0) return 'red';
-      const ratio = timer.remaining / timer.duration;
+      const ratio = timer.duration > 0 ? timer.remaining / timer.duration : 0;
       if (ratio <= 0.10) return 'red';
       if (ratio <= 0.50) return 'yellow';
       return 'green';
     }
 
     function getTimerStatusText(timer) {
-	  if (timer.remaining <= 0) return 'Завершено';
-	  if (timer.isRunning) return 'Працює';
-	  return 'Пауза';
-	}
+      if (timer.remaining <= 0) return 'Завершено';
+      if (timer.isRunning) return 'Працює';
+      return 'Пауза';
+    }
 
     function ensureAudioContext() {
       if (!audioCtx) {
@@ -708,6 +774,7 @@
           timer.finished = false;
           timer.beepPlayed = false;
         }
+
         if (!timer.isRunning) {
           timer.isRunning = true;
           timer.endTime = Date.now() + timer.remaining * 1000;
@@ -763,68 +830,9 @@
       return group.timers.find(t => t.id === timerId) || null;
     }
 
-	function tick() {
-	  const now = Date.now();
-	
-	  state.groups.forEach(group => {
-	    group.timers.forEach(timer => {
-	      if (!timer.isRunning || !timer.endTime) return;
-	
-	      const newRemaining = Math.max(0, (timer.endTime - now) / 1000);
-	      timer.remaining = newRemaining;
-	
-	      const card = document.querySelector(`[data-timer-id="${timer.id}"]`);
-	      if (!card) return;
-	
-	      const timeLabel = card.querySelector('.time-label');
-	      const progressEl = card.querySelector('.timer-progress');
-	      const statusLabel = card.querySelector('.status-label');
-	
-	      if (timeLabel) {
-	        timeLabel.textContent = formatTime(timer.remaining);
-	      }
-	
-	      const radius = 44;
-	      const circumference = 2 * Math.PI * radius;
-	      const ratio = timer.duration > 0 ? timer.remaining / timer.duration : 0;
-	      const dashOffset = circumference * (1 - Math.max(0, Math.min(1, ratio)));
-	
-	      if (progressEl) {
-	        progressEl.style.strokeDashoffset = dashOffset;
-	      }
-	
-	      card.classList.remove('state-green', 'state-yellow', 'state-red', 'finished');
-	
-	      const visualState = getTimerVisualState(timer);
-	      card.classList.add(`state-${visualState}`);
-	
-	      if (timer.remaining <= 0) {
-	        timer.remaining = 0;
-	        timer.isRunning = false;
-	        timer.endTime = null;
-	        timer.finished = true;
-	
-	        if (!timer.beepPlayed) {
-	          playBeep();
-	          timer.beepPlayed = true;
-	        }
-	
-	        card.classList.add('finished');
-	      } else {
-	        timer.finished = false;
-	      }
-	
-	      if (statusLabel) {
-	        statusLabel.textContent = getTimerStatusText(timer);
-	      }
-	    });
-	  });
-	
-	  saveToStorage();
-	}
-
     function exportJSON() {
       const data = {
+        exportedAt: Date.now(),
         groups: state.groups.map(group => ({
           id: group.id,
           name: group.name,
@@ -832,8 +840,10 @@
             id: timer.id,
             name: timer.name,
             duration: timer.duration,
-            remaining: Math.max(0, Math.ceil(timer.remaining)),
-            finished: timer.finished
+            remaining: Math.max(0, timer.remaining),
+            finished: timer.finished,
+            isRunning: timer.isRunning,
+            endTime: timer.endTime
           }))
         }))
       };
@@ -860,25 +870,7 @@
             throw new Error('Невірна структура JSON');
           }
 
-          state = {
-            groups: parsed.groups.map(group => ({
-              id: group.id || uid('group'),
-              name: group.name || 'Без назви',
-              timers: Array.isArray(group.timers)
-                ? group.timers.map(timer => ({
-                    id: timer.id || uid('timer'),
-                    name: timer.name || 'Таймер',
-                    duration: sanitizeDuration(timer.duration),
-                    remaining: Math.max(0, Number(timer.remaining ?? timer.duration ?? 60)),
-                    isRunning: false,
-                    endTime: null,
-                    finished: Boolean(timer.finished && Number(timer.remaining) <= 0),
-                    beepPlayed: Boolean(timer.finished && Number(timer.remaining) <= 0)
-                  }))
-                : []
-            }))
-          };
-
+          state = normalizeImportedState(parsed);
           saveToStorage();
           render();
         } catch (err) {
@@ -943,18 +935,25 @@
       bindInlineEditors();
       bindActions();
       bindForms();
+      bindDragAndDrop();
+      refreshAllTimerDom();
     }
 
     function renderTimer(group, timer) {
       const radius = 44;
       const circumference = 2 * Math.PI * radius;
-      const progress = timer.duration > 0 ? timer.remaining / timer.duration : 0;
-      const dashOffset = circumference * (1 - Math.max(0, Math.min(1, progress)));
+      const ratio = timer.duration > 0 ? Math.max(0, Math.min(1, timer.remaining / timer.duration)) : 0;
+      const dashOffset = circumference * (1 - ratio);
       const visualState = getTimerVisualState(timer);
       const finishedClass = timer.finished ? 'finished' : '';
 
       return `
-        <article class="timer-card state-${visualState} ${finishedClass}" data-timer-id="${timer.id}">
+        <article
+          class="timer-card state-${visualState} ${finishedClass}"
+          data-timer-id="${timer.id}"
+          data-group-id="${group.id}"
+          draggable="true"
+        >
           <div class="timer-top">
             <input
               class="inline-edit timer-name"
@@ -988,6 +987,7 @@
                 stroke-dashoffset="${dashOffset}"
               ></circle>
             </svg>
+
             <div class="timer-center">
               <div class="time-label">${formatTime(timer.remaining)}</div>
             </div>
@@ -1003,6 +1003,86 @@
           </div>
         </article>
       `;
+    }
+
+    function updateTimerDom(timer) {
+      const card = document.querySelector(`[data-timer-id="${timer.id}"]`);
+      if (!card) return;
+
+      const timeLabel = card.querySelector('.time-label');
+      const progressEl = card.querySelector('.timer-progress');
+      const statusLabel = card.querySelector('.status-label');
+
+      if (timeLabel) {
+        timeLabel.textContent = formatTime(timer.remaining);
+      }
+
+      const radius = 44;
+      const circumference = 2 * Math.PI * radius;
+      const ratio = timer.duration > 0 ? Math.max(0, Math.min(1, timer.remaining / timer.duration)) : 0;
+      const dashOffset = circumference * (1 - ratio);
+
+      if (progressEl) {
+        progressEl.style.strokeDashoffset = dashOffset;
+      }
+
+      card.classList.remove('state-green', 'state-yellow', 'state-red', 'finished');
+
+      const visualState = getTimerVisualState(timer);
+      card.classList.add(`state-${visualState}`);
+
+      if (timer.finished) {
+        card.classList.add('finished');
+      }
+
+      if (statusLabel) {
+        statusLabel.textContent = getTimerStatusText(timer);
+      }
+    }
+
+    function refreshAllTimerDom() {
+      state.groups.forEach(group => {
+        group.timers.forEach(timer => {
+          updateTimerDom(timer);
+        });
+      });
+    }
+
+    function tick() {
+      if (draggedTimerId) return;
+
+      const now = Date.now();
+      let changed = false;
+
+      state.groups.forEach(group => {
+        group.timers.forEach(timer => {
+          if (!timer.isRunning || !timer.endTime) return;
+
+          const newRemaining = Math.max(0, (timer.endTime - now) / 1000);
+          timer.remaining = newRemaining;
+
+          if (timer.remaining <= 0) {
+            timer.remaining = 0;
+            timer.isRunning = false;
+            timer.endTime = null;
+            timer.finished = true;
+
+            if (!timer.beepPlayed) {
+              playBeep();
+              timer.beepPlayed = true;
+            }
+          } else {
+            timer.finished = false;
+          }
+
+          updateTimerDom(timer);
+          changed = true;
+        });
+      });
+
+      if (changed) {
+        saveToStorage();
+      }
     }
 
     function bindInlineEditors() {
@@ -1105,6 +1185,94 @@
       });
     }
 
+    function moveTimer(fromGroupId, toGroupId, draggedId, targetId) {
+      if (!fromGroupId || !toGroupId || !draggedId) return;
+
+      const fromGroup = state.groups.find(g => g.id === fromGroupId);
+      const toGroup = state.groups.find(g => g.id === toGroupId);
+      if (!fromGroup || !toGroup) return;
+
+      const draggedIndex = fromGroup.timers.findIndex(t => t.id === draggedId);
+      if (draggedIndex === -1) return;
+
+      const [draggedTimer] = fromGroup.timers.splice(draggedIndex, 1);
+
+      if (!targetId) {
+        toGroup.timers.push(draggedTimer);
+      } else {
+        const targetIndex = toGroup.timers.findIndex(t => t.id === targetId);
+        if (targetIndex === -1) {
+          toGroup.timers.push(draggedTimer);
+        } else {
+          toGroup.timers.splice(targetIndex, 0, draggedTimer);
+        }
+      }
+
+      saveToStorage();
+      render();
+    }
+
+    function bindDragAndDrop() {
+      document.querySelectorAll('.timer-card').forEach(card => {
+        card.addEventListener('dragstart', e => {
+          draggedTimerId = card.dataset.timerId;
+          draggedFromGroupId = card.dataset.groupId;
+          card.classList.add('dragging');
+
+          if (e.dataTransfer) {
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', draggedTimerId);
+          }
+        });
+
+        card.addEventListener('dragend', () => {
+          card.classList.remove('dragging');
+          document.querySelectorAll('.timer-card').forEach(c => c.classList.remove('drag-over'));
+          draggedTimerId = null;
+          draggedFromGroupId = null;
+        });
+
+        card.addEventListener('dragover', e => {
+          e.preventDefault();
+          if (!draggedTimerId) return;
+          if (card.dataset.timerId === draggedTimerId) return;
+          card.classList.add('drag-over');
+        });
+
+        card.addEventListener('dragleave', () => {
+          card.classList.remove('drag-over');
+        });
+
+        card.addEventListener('drop', e => {
+          e.preventDefault();
+          card.classList.remove('drag-over');
+
+          const targetTimerId = card.dataset.timerId;
+          const targetGroupId = card.dataset.groupId;
+
+          moveTimer(draggedFromGroupId, targetGroupId, draggedTimerId, targetTimerId);
+        });
+      });
+
+      document.querySelectorAll('.timers-grid').forEach(grid => {
+        grid.addEventListener('dragover', e => {
+          e.preventDefault();
+        });
+
+        grid.addEventListener('drop', e => {
+          e.preventDefault();
+
+          if (!draggedTimerId || !draggedFromGroupId) return;
+
+          const groupSection = grid.closest('.group');
+          if (!groupSection) return;
+
+          const targetGroupId = groupSection.dataset.groupId;
+          moveTimer(draggedFromGroupId, targetGroupId, draggedTimerId, null);
+        });
+      });
+    }
+
     document.getElementById('addGroupBtn').addEventListener('click', () => {
       createGroup();
     });
@@ -1130,6 +1298,4 @@
     setInterval(tick, TICK_MS);
   </script>
 </body>
-
 </html>
-
