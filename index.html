@@ -116,63 +116,12 @@
       background: linear-gradient(180deg, rgba(255,93,108,.18), rgba(255,93,108,.08));
       border-color: rgba(255,93,108,.25);
     }
-  
-        .groups {
+
+    .groups {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 10px;
       align-items: start;
-    }
-    
-    @media (max-width: 1400px) {
-      .timers-grid {
-        grid-template-columns: repeat(3, minmax(180px, 1fr));
-      }
-    }
-    
-    @media (max-width: 1200px) {
-      .groups {
-        grid-template-columns: 1fr;
-      }
-    
-      .timers-grid {
-        grid-template-columns: repeat(2, minmax(170px, 1fr));
-      }
-    }
-    
-    @media (max-width: 900px) {
-      .topbar,
-      .group-header,
-      .add-timer-form {
-        grid-template-columns: 1fr;
-      }
-    
-      .group-actions {
-        justify-content: start;
-      }
-    }
-    
-    @media (max-width: 640px) {
-      .timers-grid {
-        grid-template-columns: 1fr;
-      }
-    
-      .timer-name {
-        font-size: 16px;
-      }
-    
-      .timer-duration {
-        font-size: 14px;
-        width: 84px;
-      }
-    
-      .time-label {
-        font-size: 18px;
-      }
-    
-      .status-label {
-        font-size: 13px;
-      }
     }
 
     .group {
@@ -318,6 +267,7 @@
       height: var(--timer-size);
       overflow: visible;
       transform: rotate(-90deg);
+      transform-origin: 50% 50%;
     }
 
     .timer-track {
@@ -397,7 +347,7 @@
     }
 
     .timer-card.finished {
-      animation: pulse 1s ease-in-out 3;
+      animation: pulse 1s ease-in-out 1;
       border-color: rgba(127,138,168,.25);
     }
 
@@ -414,13 +364,17 @@
       100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(127,138,168,0); }
     }
 
-    @media (max-width: 1400px) {
+    @media (max-width: 1600px) {
       .timers-grid {
         grid-template-columns: repeat(3, minmax(180px, 1fr));
       }
     }
 
-    @media (max-width: 1100px) {
+    @media (max-width: 1200px) {
+      .groups {
+        grid-template-columns: 1fr;
+      }
+
       .timers-grid {
         grid-template-columns: repeat(2, minmax(170px, 1fr));
       }
@@ -467,7 +421,7 @@
     <div class="topbar">
       <div class="title-wrap">
         <h1>Менеджер таймеров</h1>
-        <div class="subtitle">Вертикальные группы • 4 таймера в ряд • минуты • автоcохранение • импорт / экспорт</div>
+        <div class="subtitle">2 группы в ширину • 4 таймера в ряд • минуты • автосохранение • импорт / экспорт</div>
       </div>
 
       <div class="toolbar">
@@ -482,7 +436,7 @@
   </div>
 
   <script>
-    const STORAGE_KEY = 'timer_groups_ru_v2';
+    const STORAGE_KEY = 'timer_groups_ru_v3';
     const TICK_MS = 200;
     const MIN_MINUTES = 1;
 
@@ -520,14 +474,14 @@
       };
     }
 
-    function minutesToSeconds(minutes) {
-      return sanitizeMinutes(minutes) * 60;
-    }
-
     function sanitizeMinutes(value) {
       const num = parseInt(value, 10);
       if (Number.isNaN(num) || num < MIN_MINUTES) return MIN_MINUTES;
       return num;
+    }
+
+    function minutesToSeconds(minutes) {
+      return sanitizeMinutes(minutes) * 60;
     }
 
     function createTimerData(name = 'Новый таймер', minutes = 5) {
@@ -541,7 +495,8 @@
         endTime: null,
         finished: false,
         beepPlayed: false,
-        hasStarted: false
+        hasStarted: false,
+        lastCountdownBeep: null
       };
     }
 
@@ -572,6 +527,7 @@
 
                 if (wasRunning && targetEndTime) {
                   remaining = Math.max(0, (targetEndTime - now) / 1000);
+
                   if (remaining > 0) {
                     isRunning = true;
                     endTime = targetEndTime;
@@ -603,7 +559,8 @@
                   endTime,
                   finished,
                   beepPlayed: finished,
-                  hasStarted
+                  hasStarted,
+                  lastCountdownBeep: null
                 };
               })
             : []
@@ -708,13 +665,13 @@
 
         gain.gain.setValueAtTime(0.0001, now);
         gain.gain.exponentialRampToValueAtTime(0.12, now + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.25);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
 
         osc.connect(gain);
         gain.connect(audioCtx.destination);
 
         osc.start(now);
-        osc.stop(now + 0.26);
+        osc.stop(now + 0.23);
       } catch (err) {
         console.error('Ошибка воспроизведения звука:', err);
       }
@@ -757,6 +714,8 @@
         timer.beepPlayed = false;
       }
 
+      timer.lastCountdownBeep = null;
+
       if (!timer.isRunning) {
         timer.isRunning = true;
         timer.hasStarted = true;
@@ -796,6 +755,7 @@
       timer.finished = false;
       timer.beepPlayed = false;
       timer.hasStarted = false;
+      timer.lastCountdownBeep = null;
 
       saveToStorage();
       render();
@@ -828,6 +788,8 @@
           timer.finished = false;
           timer.beepPlayed = false;
         }
+
+        timer.lastCountdownBeep = null;
 
         if (!timer.isRunning) {
           timer.isRunning = true;
@@ -874,6 +836,7 @@
         timer.finished = false;
         timer.beepPlayed = false;
         timer.hasStarted = false;
+        timer.lastCountdownBeep = null;
       });
 
       saveToStorage();
@@ -973,12 +936,12 @@
 
           <div class="timer-visual">
             <svg class="timer-svg" viewBox="0 0 110 110" aria-hidden="true">
-              <circle class="timer-track" cx="55" cy="55" r="${radius}"></circle>
+              <circle class="timer-track" cx="55" cy="55" r="44"></circle>
               <circle
                 class="timer-progress"
                 cx="55"
                 cy="55"
-                r="${radius}"
+                r="44"
                 stroke-dasharray="${circumference}"
                 stroke-dashoffset="${dashOffset}"
               ></circle>
@@ -1098,16 +1061,21 @@
           const newRemaining = Math.max(0, (timer.endTime - now) / 1000);
           timer.remaining = newRemaining;
 
+          const countdownSecond = Math.ceil(timer.remaining);
+
+          if (countdownSecond > 0 && countdownSecond <= 5) {
+            if (timer.lastCountdownBeep !== countdownSecond) {
+              playBeep();
+              timer.lastCountdownBeep = countdownSecond;
+            }
+          }
+
           if (timer.remaining <= 0) {
             timer.remaining = 0;
             timer.isRunning = false;
             timer.endTime = null;
             timer.finished = true;
-
-            if (!timer.beepPlayed) {
-              playBeep();
-              timer.beepPlayed = true;
-            }
+            timer.beepPlayed = true;
           }
 
           updateTimerDom(timer);
@@ -1168,6 +1136,7 @@
 
           timer.finished = false;
           timer.beepPlayed = false;
+          timer.lastCountdownBeep = null;
 
           saveToStorage();
           render();
@@ -1247,4 +1216,3 @@
   </script>
 </body>
 </html>
-
