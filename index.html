@@ -564,10 +564,10 @@
     }
 
     function getTimerStatusText(timer) {
-      if (timer.remaining <= 0) return 'Завершено';
-      if (timer.isRunning) return '';
-      return '';
-    }
+	  if (timer.remaining <= 0) return 'Завершено';
+	  if (timer.isRunning) return 'Працює';
+	  return 'Пауза';
+	}
 
     function ensureAudioContext() {
       if (!audioCtx) {
@@ -765,55 +765,63 @@
     }
 
 	function tick() {
-
-	  const now = Date.now()
-
+	  const now = Date.now();
+	
 	  state.groups.forEach(group => {
-		group.timers.forEach(timer => {
-
-		  if (!timer.isRunning || !timer.endTime) return
-
-		  const newRemaining = Math.max(0,(timer.endTime-now)/1000)
-
-		  timer.remaining = newRemaining
-
-		  const card = document.querySelector(`[data-timer-id="${timer.id}"]`)
-		  if(!card) return
-
-		  const timeLabel = card.querySelector('.time-label')
-		  const progress = card.querySelector('.timer-progress')
-
-		  if(timeLabel){
-			timeLabel.textContent = formatTime(timer.remaining)
-		  }
-
-		  const radius = 44
-		  const circumference = 2*Math.PI*radius
-		  const ratio = timer.remaining/timer.duration
-		  const dashOffset = circumference*(1-Math.max(0,Math.min(1,ratio)))
-
-		  if(progress){
-			progress.style.strokeDashoffset = dashOffset
-		  }
-
-		  if(timer.remaining<=0){
-
-			timer.remaining = 0
-			timer.isRunning = false
-			timer.endTime = null
-			timer.finished = true
-
-			if(!timer.beepPlayed){
-			  playBeep()
-			  timer.beepPlayed=true
-			}
-
-			card.classList.add("finished")
-		  }
-
-		})
-	  })
-
+	    group.timers.forEach(timer => {
+	      if (!timer.isRunning || !timer.endTime) return;
+	
+	      const newRemaining = Math.max(0, (timer.endTime - now) / 1000);
+	      timer.remaining = newRemaining;
+	
+	      const card = document.querySelector(`[data-timer-id="${timer.id}"]`);
+	      if (!card) return;
+	
+	      const timeLabel = card.querySelector('.time-label');
+	      const progressEl = card.querySelector('.timer-progress');
+	      const statusLabel = card.querySelector('.status-label');
+	
+	      if (timeLabel) {
+	        timeLabel.textContent = formatTime(timer.remaining);
+	      }
+	
+	      const radius = 44;
+	      const circumference = 2 * Math.PI * radius;
+	      const ratio = timer.duration > 0 ? timer.remaining / timer.duration : 0;
+	      const dashOffset = circumference * (1 - Math.max(0, Math.min(1, ratio)));
+	
+	      if (progressEl) {
+	        progressEl.style.strokeDashoffset = dashOffset;
+	      }
+	
+	      card.classList.remove('state-green', 'state-yellow', 'state-red', 'finished');
+	
+	      const visualState = getTimerVisualState(timer);
+	      card.classList.add(`state-${visualState}`);
+	
+	      if (timer.remaining <= 0) {
+	        timer.remaining = 0;
+	        timer.isRunning = false;
+	        timer.endTime = null;
+	        timer.finished = true;
+	
+	        if (!timer.beepPlayed) {
+	          playBeep();
+	          timer.beepPlayed = true;
+	        }
+	
+	        card.classList.add('finished');
+	      } else {
+	        timer.finished = false;
+	      }
+	
+	      if (statusLabel) {
+	        statusLabel.textContent = getTimerStatusText(timer);
+	      }
+	    });
+	  });
+	
+	  saveToStorage();
 	}
 
     function exportJSON() {
@@ -1123,4 +1131,5 @@
     setInterval(tick, TICK_MS);
   </script>
 </body>
+
 </html>
