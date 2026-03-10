@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Менеджер таймерів</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #121a2f;
+      --panel-2: #18223d;
+      --border: rgba(255,255,255,0.08);
+      --text: #edf2ff;
+      --muted: #98a3c7;
+      --green: #20c997;
+      --yellow: #f6c453;
+      --red: #ff5d6c;
+      --accent: #7c9cff;
+      --shadow: 0 10px 30px rgba(0,0,0,.28);
+      --radius: 18px;
+      --timer-size: 108px;
+      --track: rgba(255,255,255,0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background:
+        radial-gradient(circle at top left, rgba(124,156,255,.12), transparent 25%),
+        radial-gradient(circle at bottom right, rgba(32,201,151,.08), transparent 25%),
+        var(--bg);
+      color: var(--text);
+      font-family: Inter, Segoe UI, Roboto, Arial, sans-serif;
+    }
+
+    body {
+      padding: 10px;
+    }
+
+    .app {
+      max-width: 2200px;
+      margin: 0 auto;
+      display: grid;
+      gap: 10px;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+      background: rgba(18,26,47,.92);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(8px);
+    }
+
+    .title-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.1;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .btn {
+      border: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      color: var(--text);
+      padding: 6px 10px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 11px;
+      transition: .18s ease;
+      white-space: nowrap;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      border-color: rgba(255,255,255,.14);
+      background: linear-gradient(180deg, rgba(255,255,255,.09), rgba(255,255,255,.03));
+    }
+
+    .btn:active {
+      transform: translateY(0);
+    }
+
+    .btn.primary {
+      background: linear-gradient(180deg, rgba(124,156,255,.28), rgba(124,156,255,.14));
+      border-color: rgba(124,156,255,.35);
+    }
+
+    .btn.success {
+      background: linear-gradient(180deg, rgba(32,201,151,.18), rgba(32,201,151,.08));
+      border-color: rgba(32,201,151,.28);
+    }
+
+    .btn.danger {
+      background: linear-gradient(180deg, rgba(255,93,108,.18), rgba(255,93,108,.08));
+      border-color: rgba(255,93,108,.25);
+    }
+
+    .groups {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+
+    .group {
+      background: rgba(18,26,47,.92);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .group-header {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: start;
+      padding: 10px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
+    }
+
+    .group-title-wrap {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .group-title {
+      font-size: 16px;
+      font-weight: 700;
+      width: 100%;
+    }
+
+    .group-meta {
+      font-size: 11px;
+      color: var(--muted);
+      padding-left: 8px;
+    }
+
+    .group-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: flex-end;
+    }
+
+    .inline-edit {
+      background: transparent;
+      color: var(--text);
+      border: 1px dashed transparent;
+      outline: none;
+      border-radius: 10px;
+      padding: 5px 8px;
+      transition: .18s ease;
+      min-width: 0;
+    }
+
+    .inline-edit:hover,
+    .inline-edit:focus {
+      border-color: rgba(124,156,255,.35);
+      background: rgba(255,255,255,.04);
+    }
+
+    .add-timer-form {
+      display: grid;
+      grid-template-columns: 1.4fr .7fr auto;
+      gap: 8px;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255,255,255,.02);
+    }
+
+    .field {
+      width: 100%;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.04);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 8px 10px;
+      outline: none;
+      font-size: 12px;
+      min-width: 0;
+    }
+
+    .field:focus {
+      border-color: rgba(124,156,255,.42);
+      box-shadow: 0 0 0 3px rgba(124,156,255,.12);
+    }
+
+    .timers-grid {
+      padding: 10px 12px 12px;
+      display: grid;
+      grid-template-columns: repeat(8, minmax(165px, 1fr));
+      gap: 12px;
+    }
+
+    .timer-card {
+      background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 12px;
+      display: grid;
+      gap: 9px;
+      align-content: start;
+      min-width: 0;
+      min-height: 255px;
+      position: relative;
+    }
+
+    .timer-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .timer-name {
+      font-size: 18px;
+      font-weight: 700;
+      width: 100%;
+      min-width: 0;
+    }
+
+    .timer-duration {
+      width: 96px;
+      text-align: right;
+      font-size: 16px;
+      color: var(--muted);
+    }
+
+    .timer-visual {
+      display: grid;
+      place-items: center;
+      margin-top: 2px;
+    }
+
+    .timer-svg {
+      width: var(--timer-size);
+      height: var(--timer-size);
+      overflow: visible;
+      transform: rotate(-90deg);
+    }
+
+    .timer-track {
+      fill: none;
+      stroke: var(--track);
+      stroke-width: 8;
+    }
+
+    .timer-progress {
+      fill: none;
+      stroke: var(--green);
+      stroke-width: 8;
+      stroke-linecap: round;
+      transition: stroke .25s ease, stroke-dashoffset .25s linear, filter .25s ease;
+      filter: drop-shadow(0 0 6px rgba(32,201,151,.25));
+    }
+
+    .timer-center {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      pointer-events: none;
+      padding-top: 56px;
+    }
+
+    .time-label {
+      font-size: 21px;
+      font-weight: 700;
+      letter-spacing: .2px;
+    }
+
+    .status-label {
+      text-align: center;
+      color: var(--muted);
+      font-size: 15px;
+      min-height: 18px;
+    }
+
+    .timer-actions {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .timer-actions .btn {
+      padding: 8px 10px;
+      font-size: 13px;
+      border-radius: 10px;
+    }
+
+    .state-green .timer-progress {
+      stroke: var(--green);
+      filter: drop-shadow(0 0 6px rgba(32,201,151,.30));
+    }
+
+    .state-yellow .timer-progress {
+      stroke: var(--yellow);
+      filter: drop-shadow(0 0 6px rgba(246,196,83,.30));
+    }
+
+    .state-red .timer-progress {
+      stroke: var(--red);
+      filter: drop-shadow(0 0 8px rgba(255,93,108,.35));
+    }
+
+    .timer-card.finished {
+      animation: pulse 1s ease-in-out infinite;
+      border-color: rgba(255,93,108,.30);
+      box-shadow: inset 0 0 0 1px rgba(255,93,108,.08), 0 0 0 1px rgba(255,93,108,.05);
+    }
+
+    .empty-state {
+      color: var(--muted);
+      font-size: 12px;
+      padding: 18px 12px 20px;
+      text-align: center;
+    }
+
+    @keyframes pulse {
+      0%   { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,93,108,.20); }
+      50%  { transform: scale(1.02); box-shadow: 0 0 0 6px rgba(255,93,108,.06); }
+      100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,93,108,.00); }
+    }
+
+    @media (max-width: 1900px) {
+      .timers-grid {
+        grid-template-columns: repeat(6, minmax(165px, 1fr));
+      }
+    }
+
+    @media (max-width: 1500px) {
+      .timers-grid {
+        grid-template-columns: repeat(4, minmax(150px, 1fr));
+      }
+
+      .timer-card {
+        min-height: 230px;
+      }
+    }
+
+    @media (max-width: 1000px) {
+      .topbar {
+        grid-template-columns: 1fr;
+      }
+
+      .group-header {
+        grid-template-columns: 1fr;
+      }
+
+      .group-actions {
+        justify-content: start;
+      }
+
+      .add-timer-form {
+        grid-template-columns: 1fr;
+      }
+
+      .timers-grid {
+        grid-template-columns: repeat(2, minmax(150px, 1fr));
+      }
+    }
+
+    @media (max-width: 640px) {
+      .timers-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .timer-name {
+        font-size: 16px;
+      }
+
+      .timer-duration {
+        font-size: 14px;
+        width: 84px;
+      }
+
+      .time-label {
+        font-size: 18px;
+      }
+
+      .status-label {
+        font-size: 13px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="title-wrap">
+        <h1>Менеджер таймерів</h1>
+        <div class="subtitle">Компактний dark UI • 8 таймерів у ряд • автозбереження • імпорт / експорт</div>
+      </div>
+
+      <div class="toolbar">
+        <button class="btn primary" id="addGroupBtn">+ Додати групу</button>
+        <button class="btn" id="exportBtn">Export JSON</button>
+        <button class="btn" id="importBtn">Import JSON</button>
+        <input type="file" id="importFile" accept="application/json" hidden />
+      </div>
+    </div>
+
+    <div class="groups" id="groups"></div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'timer_groups_compact_v4_match_style';
+    const TICK_MS = 200;
+
+    let state = loadFromStorage();
+    let audioCtx = null;
+
+    function uid(prefix = 'id') {
+      return prefix + '_' + Math.random().toString(36).slice(2, 10);
+    }
+
+    function defaultState() {
+      return {
+        groups: [
+          {
+            id: uid('group'),
+            name: 'Група 1',
+            timers: [
+              createTimerData('Таймер 1', 60),
+              createTimerData('Таймер 2', 90),
+              createTimerData('Таймер 3', 120),
+              createTimerData('Таймер 4', 180)
+            ]
+          },
+          {
+            id: uid('group'),
+            name: 'Група 2',
+            timers: [
+              createTimerData('Таймер 5', 45),
+              createTimerData('Таймер 6', 75),
+              createTimerData('Таймер 7', 150),
+              createTimerData('Таймер 8', 240)
+            ]
+          }
+        ]
+      };
+    }
+
+    function createTimerData(name = 'Новий таймер', duration = 60) {
+      return {
+        id: uid('timer'),
+        name,
+        duration: sanitizeDuration(duration),
+        remaining: sanitizeDuration(duration),
+        isRunning: false,
+        endTime: null,
+        finished: false,
+        beepPlayed: false
+      };
+    }
+
+    function sanitizeDuration(value) {
+      const num = parseInt(value, 10);
+      if (Number.isNaN(num) || num < 1) return 1;
+      return num;
+    }
+
+    function loadFromStorage() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return defaultState();
+
+        const parsed = JSON.parse(raw);
+        if (!parsed || !Array.isArray(parsed.groups)) {
+          return defaultState();
+        }
+
+        parsed.groups = parsed.groups.map(group => ({
+          id: group.id || uid('group'),
+          name: group.name || 'Без назви',
+          timers: Array.isArray(group.timers)
+            ? group.timers.map(timer => ({
+                id: timer.id || uid('timer'),
+                name: timer.name || 'Таймер',
+                duration: sanitizeDuration(timer.duration),
+                remaining: Math.max(0, Number(timer.remaining ?? timer.duration ?? 60)),
+                isRunning: false,
+                endTime: null,
+                finished: Boolean(timer.finished && Number(timer.remaining) <= 0),
+                beepPlayed: Boolean(timer.beepPlayed && Number(timer.remaining) <= 0)
+              }))
+            : []
+        }));
+
+        return parsed;
+      } catch (err) {
+        console.error('Помилка завантаження localStorage:', err);
+        return defaultState();
+      }
+    }
+
+    function saveToStorage() {
+      try {
+        const safeState = {
+          groups: state.groups.map(group => ({
+            id: group.id,
+            name: group.name,
+            timers: group.timers.map(timer => ({
+              id: timer.id,
+              name: timer.name,
+              duration: timer.duration,
+              remaining: Math.max(0, Math.ceil(timer.remaining)),
+              finished: timer.finished
+            }))
+          }))
+        };
+
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(safeState));
+      } catch (err) {
+        console.error('Помилка збереження:', err);
+      }
+    }
+
+    function formatTime(seconds) {
+      const s = Math.max(0, Math.ceil(seconds));
+      const mm = Math.floor(s / 60).toString().padStart(2, '0');
+      const ss = (s % 60).toString().padStart(2, '0');
+      return `${mm}:${ss}`;
+    }
+
+    function getTimerVisualState(timer) {
+      if (timer.remaining <= 0) return 'red';
+      const ratio = timer.remaining / timer.duration;
+      if (ratio <= 0.10) return 'red';
+      if (ratio <= 0.50) return 'yellow';
+      return 'green';
+    }
+
+    function getTimerStatusText(timer) {
+      if (timer.remaining <= 0) return 'Завершено';
+      if (timer.isRunning) return '';
+      return '';
+    }
+
+    function ensureAudioContext() {
+      if (!audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) {
+          audioCtx = new AudioContextClass();
+        }
+      }
+
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(() => {});
+      }
+    }
+
+    function playBeep() {
+      try {
+        ensureAudioContext();
+        if (!audioCtx) return;
+
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, now);
+        osc.frequency.exponentialRampToValueAtTime(660, now + 0.12);
+
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.12, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.25);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.26);
+      } catch (err) {
+        console.error('Помилка відтворення звуку:', err);
+      }
+    }
+
+    function createGroup() {
+      state.groups.push({
+        id: uid('group'),
+        name: `Група ${state.groups.length + 1}`,
+        timers: []
+      });
+      saveToStorage();
+      render();
+    }
+
+    function createTimer(groupId, name, duration) {
+      const group = state.groups.find(g => g.id === groupId);
+      if (!group) return;
+
+      group.timers.push(createTimerData(name || `Таймер ${group.timers.length + 1}`, duration || 60));
+      saveToStorage();
+      render();
+    }
+
+    function startTimer(groupId, timerId) {
+      const timer = findTimer(groupId, timerId);
+      if (!timer) return;
+
+      ensureAudioContext();
+
+      if (timer.remaining <= 0) {
+        timer.remaining = timer.duration;
+        timer.finished = false;
+        timer.beepPlayed = false;
+      }
+
+      if (!timer.isRunning) {
+        timer.isRunning = true;
+        timer.endTime = Date.now() + timer.remaining * 1000;
+      }
+
+      saveToStorage();
+      render();
+    }
+
+    function pauseTimer(groupId, timerId) {
+      const timer = findTimer(groupId, timerId);
+      if (!timer) return;
+
+      if (timer.isRunning) {
+        timer.remaining = Math.max(0, (timer.endTime - Date.now()) / 1000);
+        timer.isRunning = false;
+        timer.endTime = null;
+
+        if (timer.remaining <= 0) {
+          timer.remaining = 0;
+          timer.finished = true;
+        }
+      }
+
+      saveToStorage();
+      render();
+    }
+
+    function resetTimer(groupId, timerId) {
+      const timer = findTimer(groupId, timerId);
+      if (!timer) return;
+
+      timer.isRunning = false;
+      timer.endTime = null;
+      timer.remaining = timer.duration;
+      timer.finished = false;
+      timer.beepPlayed = false;
+
+      saveToStorage();
+      render();
+    }
+
+    function deleteTimer(groupId, timerId) {
+      const group = state.groups.find(g => g.id === groupId);
+      if (!group) return;
+
+      group.timers = group.timers.filter(t => t.id !== timerId);
+      saveToStorage();
+      render();
+    }
+
+    function deleteGroup(groupId) {
+      state.groups = state.groups.filter(g => g.id !== groupId);
+      saveToStorage();
+      render();
+    }
+
+    function startAll(groupId) {
+      const group = state.groups.find(g => g.id === groupId);
+      if (!group) return;
+
+      ensureAudioContext();
+
+      group.timers.forEach(timer => {
+        if (timer.remaining <= 0) {
+          timer.remaining = timer.duration;
+          timer.finished = false;
+          timer.beepPlayed = false;
+        }
+        if (!timer.isRunning) {
+          timer.isRunning = true;
+          timer.endTime = Date.now() + timer.remaining * 1000;
+        }
+      });
+
+      saveToStorage();
+      render();
+    }
+
+    function pauseAll(groupId) {
+      const group = state.groups.find(g => g.id === groupId);
+      if (!group) return;
+
+      const now = Date.now();
+
+      group.timers.forEach(timer => {
+        if (timer.isRunning && timer.endTime) {
+          timer.remaining = Math.max(0, (timer.endTime - now) / 1000);
+          timer.isRunning = false;
+          timer.endTime = null;
+
+          if (timer.remaining <= 0) {
+            timer.remaining = 0;
+            timer.finished = true;
+          }
+        }
+      });
+
+      saveToStorage();
+      render();
+    }
+
+    function resetAll(groupId) {
+      const group = state.groups.find(g => g.id === groupId);
+      if (!group) return;
+
+      group.timers.forEach(timer => {
+        timer.isRunning = false;
+        timer.endTime = null;
+        timer.remaining = timer.duration;
+        timer.finished = false;
+        timer.beepPlayed = false;
+      });
+
+      saveToStorage();
+      render();
+    }
+
+    function findTimer(groupId, timerId) {
+      const group = state.groups.find(g => g.id === groupId);
+      if (!group) return null;
+      return group.timers.find(t => t.id === timerId) || null;
+    }
+
+	function tick() {
+
+	  const now = Date.now()
+
+	  state.groups.forEach(group => {
+		group.timers.forEach(timer => {
+
+		  if (!timer.isRunning || !timer.endTime) return
+
+		  const newRemaining = Math.max(0,(timer.endTime-now)/1000)
+
+		  timer.remaining = newRemaining
+
+		  const card = document.querySelector(`[data-timer-id="${timer.id}"]`)
+		  if(!card) return
+
+		  const timeLabel = card.querySelector('.time-label')
+		  const progress = card.querySelector('.timer-progress')
+
+		  if(timeLabel){
+			timeLabel.textContent = formatTime(timer.remaining)
+		  }
+
+		  const radius = 44
+		  const circumference = 2*Math.PI*radius
+		  const ratio = timer.remaining/timer.duration
+		  const dashOffset = circumference*(1-Math.max(0,Math.min(1,ratio)))
+
+		  if(progress){
+			progress.style.strokeDashoffset = dashOffset
+		  }
+
+		  if(timer.remaining<=0){
+
+			timer.remaining = 0
+			timer.isRunning = false
+			timer.endTime = null
+			timer.finished = true
+
+			if(!timer.beepPlayed){
+			  playBeep()
+			  timer.beepPlayed=true
+			}
+
+			card.classList.add("finished")
+		  }
+
+		})
+	  })
+
+	}
+
+    function exportJSON() {
+      const data = {
+        groups: state.groups.map(group => ({
+          id: group.id,
+          name: group.name,
+          timers: group.timers.map(timer => ({
+            id: timer.id,
+            name: timer.name,
+            duration: timer.duration,
+            remaining: Math.max(0, Math.ceil(timer.remaining)),
+            finished: timer.finished
+          }))
+        }))
+      };
+
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'timer-config.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function importJSON(file) {
+      if (!file) return;
+
+      const reader = new FileReader();
+
+      reader.onload = event => {
+        try {
+          const parsed = JSON.parse(event.target.result);
+
+          if (!parsed || !Array.isArray(parsed.groups)) {
+            throw new Error('Невірна структура JSON');
+          }
+
+          state = {
+            groups: parsed.groups.map(group => ({
+              id: group.id || uid('group'),
+              name: group.name || 'Без назви',
+              timers: Array.isArray(group.timers)
+                ? group.timers.map(timer => ({
+                    id: timer.id || uid('timer'),
+                    name: timer.name || 'Таймер',
+                    duration: sanitizeDuration(timer.duration),
+                    remaining: Math.max(0, Number(timer.remaining ?? timer.duration ?? 60)),
+                    isRunning: false,
+                    endTime: null,
+                    finished: Boolean(timer.finished && Number(timer.remaining) <= 0),
+                    beepPlayed: Boolean(timer.finished && Number(timer.remaining) <= 0)
+                  }))
+                : []
+            }))
+          };
+
+          saveToStorage();
+          render();
+        } catch (err) {
+          alert('Не вдалося імпортувати JSON: ' + err.message);
+        }
+      };
+
+      reader.readAsText(file);
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    function render() {
+      const groupsEl = document.getElementById('groups');
+
+      groupsEl.innerHTML = state.groups.map(group => {
+        const timersHtml = group.timers.length
+          ? group.timers.map(timer => renderTimer(group, timer)).join('')
+          : `<div class="empty-state">У цій групі поки немає таймерів.</div>`;
+
+        return `
+          <section class="group" data-group-id="${group.id}">
+            <div class="group-header">
+              <div class="group-title-wrap">
+                <input
+                  class="inline-edit group-title"
+                  data-role="group-name"
+                  data-group-id="${group.id}"
+                  value="${escapeHtml(group.name)}"
+                />
+                <div class="group-meta">Таймерів: ${group.timers.length} / 8+ в ряд</div>
+              </div>
+
+              <div class="group-actions">
+                <button class="btn success" data-action="start-all" data-group-id="${group.id}">Start all</button>
+                <button class="btn" data-action="pause-all" data-group-id="${group.id}">Pause all</button>
+                <button class="btn" data-action="reset-all" data-group-id="${group.id}">Reset all</button>
+                <button class="btn danger" data-action="delete-group" data-group-id="${group.id}">Delete group</button>
+              </div>
+            </div>
+
+            <form class="add-timer-form" data-role="add-timer-form" data-group-id="${group.id}">
+              <input class="field" name="name" placeholder="Timer name" maxlength="40" />
+              <input class="field" name="duration" type="number" min="1" placeholder="Duration (sec)" />
+              <button class="btn primary" type="submit">Add timer</button>
+            </form>
+
+            <div class="timers-grid">
+              ${timersHtml}
+            </div>
+          </section>
+        `;
+      }).join('');
+
+      bindInlineEditors();
+      bindActions();
+      bindForms();
+    }
+
+    function renderTimer(group, timer) {
+      const radius = 44;
+      const circumference = 2 * Math.PI * radius;
+      const progress = timer.duration > 0 ? timer.remaining / timer.duration : 0;
+      const dashOffset = circumference * (1 - Math.max(0, Math.min(1, progress)));
+      const visualState = getTimerVisualState(timer);
+      const finishedClass = timer.finished ? 'finished' : '';
+
+      return `
+        <article class="timer-card state-${visualState} ${finishedClass}" data-timer-id="${timer.id}">
+          <div class="timer-top">
+            <input
+              class="inline-edit timer-name"
+              data-role="timer-name"
+              data-group-id="${group.id}"
+              data-timer-id="${timer.id}"
+              value="${escapeHtml(timer.name)}"
+              maxlength="40"
+            />
+            <input
+              class="inline-edit timer-duration"
+              data-role="timer-duration"
+              data-group-id="${group.id}"
+              data-timer-id="${timer.id}"
+              type="number"
+              min="1"
+              value="${timer.duration}"
+              title="Тривалість у секундах"
+            />
+          </div>
+
+          <div class="timer-visual">
+            <svg class="timer-svg" viewBox="0 0 110 110" aria-hidden="true">
+              <circle class="timer-track" cx="55" cy="55" r="${radius}"></circle>
+              <circle
+                class="timer-progress"
+                cx="55"
+                cy="55"
+                r="${radius}"
+                stroke-dasharray="${circumference}"
+                stroke-dashoffset="${dashOffset}"
+              ></circle>
+            </svg>
+            <div class="timer-center">
+              <div class="time-label">${formatTime(timer.remaining)}</div>
+            </div>
+          </div>
+
+          <div class="status-label">${getTimerStatusText(timer)}</div>
+
+          <div class="timer-actions">
+            <button class="btn success" data-action="start-timer" data-group-id="${group.id}" data-timer-id="${timer.id}">Start</button>
+            <button class="btn" data-action="pause-timer" data-group-id="${group.id}" data-timer-id="${timer.id}">Pause</button>
+            <button class="btn" data-action="reset-timer" data-group-id="${group.id}" data-timer-id="${timer.id}">Reset</button>
+            <button class="btn danger" data-action="delete-timer" data-group-id="${group.id}" data-timer-id="${timer.id}">Delete</button>
+          </div>
+        </article>
+      `;
+    }
+
+    function bindInlineEditors() {
+      document.querySelectorAll('[data-role="group-name"]').forEach(input => {
+        input.addEventListener('change', e => {
+          const group = state.groups.find(g => g.id === e.target.dataset.groupId);
+          if (!group) return;
+          group.name = e.target.value.trim() || 'Без назви';
+          saveToStorage();
+          render();
+        });
+      });
+
+      document.querySelectorAll('[data-role="timer-name"]').forEach(input => {
+        input.addEventListener('change', e => {
+          const timer = findTimer(e.target.dataset.groupId, e.target.dataset.timerId);
+          if (!timer) return;
+          timer.name = e.target.value.trim() || 'Таймер';
+          saveToStorage();
+          render();
+        });
+      });
+
+      document.querySelectorAll('[data-role="timer-duration"]').forEach(input => {
+        input.addEventListener('change', e => {
+          const timer = findTimer(e.target.dataset.groupId, e.target.dataset.timerId);
+          if (!timer) return;
+
+          const newDuration = sanitizeDuration(e.target.value);
+          const wasFinished = timer.remaining <= 0 || timer.finished;
+
+          timer.duration = newDuration;
+
+          if (!timer.isRunning) {
+            timer.remaining = wasFinished ? newDuration : Math.min(timer.remaining, newDuration);
+            if (timer.remaining <= 0) timer.remaining = newDuration;
+          } else {
+            timer.remaining = Math.min(timer.remaining, newDuration);
+            timer.endTime = Date.now() + timer.remaining * 1000;
+          }
+
+          timer.finished = false;
+          timer.beepPlayed = false;
+
+          saveToStorage();
+          render();
+        });
+      });
+    }
+
+    function bindActions() {
+      document.querySelectorAll('[data-action]').forEach(btn => {
+        btn.addEventListener('click', e => {
+          const action = e.currentTarget.dataset.action;
+          const groupId = e.currentTarget.dataset.groupId;
+          const timerId = e.currentTarget.dataset.timerId;
+
+          switch (action) {
+            case 'start-timer':
+              startTimer(groupId, timerId);
+              break;
+            case 'pause-timer':
+              pauseTimer(groupId, timerId);
+              break;
+            case 'reset-timer':
+              resetTimer(groupId, timerId);
+              break;
+            case 'delete-timer':
+              deleteTimer(groupId, timerId);
+              break;
+            case 'start-all':
+              startAll(groupId);
+              break;
+            case 'pause-all':
+              pauseAll(groupId);
+              break;
+            case 'reset-all':
+              resetAll(groupId);
+              break;
+            case 'delete-group':
+              deleteGroup(groupId);
+              break;
+          }
+        });
+      });
+    }
+
+    function bindForms() {
+      document.querySelectorAll('[data-role="add-timer-form"]').forEach(form => {
+        form.addEventListener('submit', e => {
+          e.preventDefault();
+
+          const groupId = form.dataset.groupId;
+          const name = form.elements.name.value.trim() || 'Новий таймер';
+          const duration = sanitizeDuration(form.elements.duration.value || 60);
+
+          createTimer(groupId, name, duration);
+          form.reset();
+        });
+      });
+    }
+
+    document.getElementById('addGroupBtn').addEventListener('click', () => {
+      createGroup();
+    });
+
+    document.getElementById('exportBtn').addEventListener('click', () => {
+      exportJSON();
+    });
+
+    document.getElementById('importBtn').addEventListener('click', () => {
+      document.getElementById('importFile').click();
+    });
+
+    document.getElementById('importFile').addEventListener('change', e => {
+      const file = e.target.files[0];
+      importJSON(file);
+      e.target.value = '';
+    });
+
+    document.addEventListener('pointerdown', ensureAudioContext, { once: true });
+    document.addEventListener('keydown', ensureAudioContext, { once: true });
+
+    render();
+    setInterval(tick, TICK_MS);
+  </script>
+</body>
+</html>
